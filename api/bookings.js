@@ -28,8 +28,9 @@ async function fetchAllReservations(token, params) {
   while (collected.length < total && collected.length < 5000) {
     const res = await axios.get(`${BASE}/v3/reserve/reservations`, {
       headers: { Authorization: `Bearer ${token}` },
-      params: { ...params, limit: pageSize, start, sortBy: "startTime", sortOrder: "ascending" },
-      paramsSerializer: { indexes: null },
+      // Keep params minimal — the status array triggers a Slim 500 when combined
+      // with other filters (PHP drops duplicate keys silently). Filter client-side.
+      params: { ...params, limit: pageSize, start },
     });
 
     const payload = res.data?.data ?? res.data;
@@ -55,42 +56,39 @@ export default async function handler(req, res) {
   try {
     const token = await getToken();
 
-    const params = {
-      locationId,
-      startDate,
-      endDate,
-      // Include approved and pending; exclude declined
-      status: ["approved", "pending"],
-    };
+    const params = { locationId, startDate, endDate };
 
-    // When a specific room is requested, filter server-side (Reserve API supports this)
+    // The Reserve API supports roomId filtering server-side
     if (roomId) params.roomId = roomId;
 
     const reservations = await fetchAllReservations(token, params);
 
-    const bookings = reservations.map((r) => ({
-      reservationId:     r.reservationId,
-      roomId:            r.roomId,
-      roomName:          r.roomName ?? "",
-      displayName:       r.displayName ?? "",
-      startTime:         r.startTime ?? "",
-      endTime:           r.endTime ?? "",
-      // setupTime and breakdownTime are integer minutes (not clock times)
-      setupTime:         r.setupTime ?? 0,
-      breakdownTime:     r.breakdownTime ?? 0,
-      contactName:       r.contactName ?? "",
-      contactPhone:      r.contactPhone ?? "",
-      contactEmail:      r.contactEmail ?? "",
-      locationId:        r.locationId,
-      locationName:      r.locationName ?? "",
-      status:            r.status ?? "approved",
-      type:              r.type ?? "patron",   // "staff" | "patron"
-      groupName:         r.groupName ?? "",
-      expectedAttendees: r.expectedAttendees ?? 0,
-      patronNotes:       r.patronNotes ?? "",
-      eventNotes:        r.eventNotes ?? "",
-      layout:            r.layout ?? "",
-    }));
+    // Filter out declined reservations client-side — passing status as a repeated
+    // query param triggers a Slim 500 on Communico's end when combined with other filters.
+    const bookings = reservations
+      .filter((r) => r.status !== "declined")
+      .map((r) => ({
+        reservationId:     r.reservationId,
+        roomId:            r.roomId,
+        roomName:          r.roomName ?? "",
+        displayName:       r.displayName ?? "",
+        startTime:         r.startTime ?? "",
+        endTime:           r.endTime ?? "",
+        setupTime:         r.setupTime ?? 0,
+        breakdownTime:     r.breakdownTime ?? 0,
+        contactName:       r.contactName ?? "",
+        contactPhone:      r.contactPhone ?? "",
+        contactEmail:      r.contactEmail ?? "",
+        locationId:        r.locationId,
+        locationName:      r.locationName ?? "",
+        status:            r.status ?? "approved",
+        type:              r.type ?? "patron",
+        groupName:         r.groupName ?? "",
+        expectedAttendees: r.expectedAttendees ?? 0,
+        patronNotes:       r.patronNotes ?? "",
+        eventNotes:        r.eventNotes ?? "",
+        layout:            r.layout ?? "",
+      }));
 
     res.setHeader("Cache-Control", "public, s-maxage=60");
     res.json(bookings);
