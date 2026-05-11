@@ -1,6 +1,6 @@
 api_overview.md
 project_overview.md
-.gitignore
 .env
-.vercel
 .env*.local
+.vercel
+node_modules
