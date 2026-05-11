@@ -23,7 +23,6 @@ function dateStr(date) {
   return date.toISOString().split("T")[0];
 }
 
-// Fetch all Reserve rooms (paginated). Returns entries with roomId, locationId, name, etc.
 async function fetchAllRooms(token) {
   const pageSize = 200;
   let start = 0;
@@ -46,9 +45,6 @@ async function fetchAllRooms(token) {
   return collected;
 }
 
-// Use Attend events to derive locationId → locationName mapping.
-// The Reserve rooms endpoint returns locationId but not locationName, so we
-// cross-reference with the Attend API which does include locationName.
 async function fetchLocationNames(token) {
   const now = new Date();
   const future = new Date();
@@ -77,13 +73,11 @@ export default async function handler(req, res) {
   try {
     const token = await getToken();
 
-    // Fetch rooms and location names in parallel
     const [rooms, locationNames] = await Promise.all([
       fetchAllRooms(token),
       fetchLocationNames(token),
     ]);
 
-    // Group rooms by locationId
     const locationMap = new Map();
     for (const room of rooms) {
       if (!room.locationId) continue;
@@ -98,7 +92,7 @@ export default async function handler(req, res) {
         roomId:        room.roomId,
         roomName:      room.name ?? "Unknown Room",
         roomType:      room.roomType ?? null,
-        setupTime:     room.setupTime ?? 0,    // default setup minutes for this room
+        setupTime:     room.setupTime ?? 0,
         breakdownTime: room.breakdownTime ?? 0,
         staffBookable: room.staffBookable ?? true,
       });

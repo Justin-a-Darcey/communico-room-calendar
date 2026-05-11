@@ -28,8 +28,6 @@ async function fetchAllReservations(token, params) {
   while (collected.length < total && collected.length < 5000) {
     const res = await axios.get(`${BASE}/v3/reserve/reservations`, {
       headers: { Authorization: `Bearer ${token}` },
-      // Keep params minimal — the status array triggers a Slim 500 when combined
-      // with other filters (PHP drops duplicate keys silently). Filter client-side.
       params: { ...params, limit: pageSize, start },
     });
 
@@ -47,7 +45,7 @@ async function fetchAllReservations(token, params) {
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
 
-  const { locationId, roomId, startDate, endDate } = req.query;
+  const { locationId, startDate, endDate } = req.query;
 
   if (!locationId || !startDate || !endDate) {
     return res.status(400).json({ error: "locationId, startDate, and endDate are required" });
@@ -56,17 +54,18 @@ export default async function handler(req, res) {
   try {
     const token = await getToken();
 
-    const params = { locationId, startDate, endDate };
+    const params = {
+      locationId, startDate, endDate,
+      fields: "contactName,contactEmail,contactPhone,roomName,setupTime,breakdownTime,locationName,type,groupName,expectedAttendees,patronNotes,eventNotes,layout",
+    };
 
-    // The Reserve API supports roomId filtering server-side
-    if (roomId) params.roomId = roomId;
+    const [approved, pending] = await Promise.all([
+      fetchAllReservations(token, { ...params, status: "approved" }),
+      fetchAllReservations(token, { ...params, status: "pending" }),
+    ]);
+    const reservations = [...approved, ...pending];
 
-    const reservations = await fetchAllReservations(token, params);
-
-    // Filter out declined reservations client-side — passing status as a repeated
-    // query param triggers a Slim 500 on Communico's end when combined with other filters.
     const bookings = reservations
-      .filter((r) => r.status !== "declined")
       .map((r) => ({
         reservationId:     r.reservationId,
         roomId:            r.roomId,

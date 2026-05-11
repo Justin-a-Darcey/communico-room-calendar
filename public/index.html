@@ -11,7 +11,6 @@
     * { box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; }
 
-    /* ── Calendar structure ─────────────────────────────── */
     #calendar-inner {
       min-width: 1060px;
     }
@@ -25,7 +24,6 @@
 
     .cal-row:last-child { border-bottom: none; }
 
-    /* Sticky day label column */
     .day-label {
       width: 80px;
       min-width: 80px;
@@ -54,7 +52,6 @@
       color: #6b7280;
     }
 
-    /* Timeline bar — the per-day booking area */
     .timeline-bar {
       flex: 1;
       position: relative;
@@ -62,7 +59,6 @@
       overflow: visible;
     }
 
-    /* Hour + half-hour grid lines drawn inside timeline-bar */
     .grid-line {
       position: absolute;
       top: 0;
@@ -74,7 +70,6 @@
     .grid-line.hour  { background: rgba(134,239,172,0.6); }
     .grid-line.half  { background: rgba(134,239,172,0.3); }
 
-    /* ── Time ruler row ─────────────────────────────────── */
     .time-ruler-row {
       position: sticky;
       top: 0;
@@ -119,7 +114,6 @@
       pointer-events: none;
     }
 
-    /* ── Booking blocks ─────────────────────────────────── */
     .booking-block {
       position: absolute;
       top: 4px;
@@ -147,7 +141,6 @@
       outline-offset: -2px;
     }
 
-    /* Setup/breakdown bands rendered as sibling divs inside the block */
     .band-setup, .band-breakdown {
       position: absolute;
       top: 0;
@@ -182,7 +175,6 @@
       line-height: 1.2;
     }
 
-    /* ── Row state variants ─────────────────────────────── */
     .cal-row.is-today .day-label {
       background: #fef3c7;
     }
@@ -212,7 +204,6 @@
       opacity: 0.55;
     }
 
-    /* ── All Rooms mode ─────────────────────────────────── */
     .day-group-header {
       display: flex;
       align-items: center;
@@ -245,7 +236,6 @@
       text-align: right;
     }
 
-    /* ── Tooltip ─────────────────────────────────────────── */
     #tooltip {
       position: fixed;
       z-index: 100;
@@ -256,7 +246,6 @@
 
     #tooltip.hidden { display: none; }
 
-    /* ── Scrollbar styling ──────────────────────────────── */
     #calendar-outer::-webkit-scrollbar { height: 8px; width: 8px; }
     #calendar-outer::-webkit-scrollbar-track { background: #f1f5f9; }
     #calendar-outer::-webkit-scrollbar-thumb {
@@ -265,7 +254,6 @@
     }
     #calendar-outer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-    /* ── Skeleton loading rows ──────────────────────────── */
     @keyframes shimmer {
       0% { background-position: -400px 0; }
       100% { background-position: 400px 0; }
@@ -278,7 +266,6 @@
       border-radius: 4px;
     }
 
-    /* ── Select styling ─────────────────────────────────── */
     select {
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
@@ -287,7 +274,6 @@
       padding-right: 28px !important;
     }
 
-    /* ── Find-a-slot modal ──────────────────────────────── */
     #modal-overlay {
       position: fixed;
       inset: 0;
@@ -302,7 +288,6 @@
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
-  <!-- ── Header ─────────────────────────────────────────── -->
   <header class="bg-teal-900 text-white px-6 py-3 flex items-center justify-between flex-shrink-0 shadow-md">
     <div class="flex items-center gap-3">
       <svg class="w-6 h-6 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -316,9 +301,7 @@
     <div id="last-updated" class="text-teal-400 text-xs hidden"></div>
   </header>
 
-  <!-- ── Controls bar ───────────────────────────────────── -->
   <div class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap items-center gap-3 flex-shrink-0">
-    <!-- Branch selector -->
     <div class="flex items-center gap-2">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Branch</label>
       <select id="branch-select"
@@ -327,7 +310,6 @@
       </select>
     </div>
 
-    <!-- Room selector + All Rooms toggle -->
     <div class="flex items-center gap-2">
       <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Room</label>
       <select id="room-select"
@@ -344,7 +326,6 @@
 
     <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
 
-    <!-- Month navigation -->
     <div class="flex items-center gap-1.5">
       <button id="prev-month-btn"
         class="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
@@ -389,7 +370,6 @@
 
     <div class="flex-1"></div>
 
-    <!-- Find a Slot button -->
     <button id="find-slot-btn"
       class="flex items-center gap-1.5 text-sm px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md transition font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
       disabled>
@@ -400,38 +380,8 @@
     </button>
   </div>
 
-  <!-- ── Stats bar ───────────────────────────────────────── -->
-  <div id="stats-bar" class="bg-white border-b border-slate-200 px-6 py-2 flex items-center gap-6 flex-shrink-0 hidden">
-    <div class="flex items-center gap-2">
-      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Bookings</span>
-      <span id="stat-bookings" class="text-sm font-bold text-slate-700">—</span>
-    </div>
-    <div class="h-4 w-px bg-slate-200"></div>
-    <div class="flex items-center gap-2">
-      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Hours Booked</span>
-      <span id="stat-hours" class="text-sm font-bold text-slate-700">—</span>
-    </div>
-    <div class="h-4 w-px bg-slate-200"></div>
-    <div class="flex items-center gap-2">
-      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Utilization</span>
-      <div class="flex items-center gap-1.5">
-        <div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
-          <div id="stat-util-bar" class="h-full bg-teal-500 rounded-full transition-all" style="width:0%"></div>
-        </div>
-        <span id="stat-util" class="text-sm font-bold text-slate-700">—</span>
-      </div>
-    </div>
-    <div class="h-4 w-px bg-slate-200"></div>
-    <div class="flex items-center gap-2">
-      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Today</span>
-      <span id="stat-today" class="text-sm font-medium text-slate-600">—</span>
-    </div>
-  </div>
-
-  <!-- ── Main calendar area ─────────────────────────────── -->
   <main class="flex-1 overflow-hidden flex flex-col">
 
-    <!-- Empty state / prompts -->
     <div id="empty-state" class="flex-1 flex flex-col items-center justify-center text-center p-8">
       <svg class="w-16 h-16 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
         <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -440,7 +390,6 @@
       <p class="text-slate-300 text-sm mt-1">Bookings load directly from Communico</p>
     </div>
 
-    <!-- Loading state -->
     <div id="loading-state" class="flex-1 flex items-center justify-center hidden">
       <div class="flex flex-col items-center gap-3">
         <svg class="w-8 h-8 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -451,7 +400,6 @@
       </div>
     </div>
 
-    <!-- Error state -->
     <div id="error-state" class="flex-1 flex flex-col items-center justify-center hidden">
       <svg class="w-12 h-12 text-red-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -460,22 +408,15 @@
       <button id="retry-btn" class="mt-3 text-sm text-teal-600 hover:underline">Retry</button>
     </div>
 
-    <!-- Calendar scroll container -->
     <div id="calendar-outer" class="flex-1 overflow-auto hidden">
       <div id="calendar-inner">
-        <!-- Rows injected by app.js -->
       </div>
 
-      <!-- Legend -->
       <div id="legend" class="flex items-center gap-5 px-6 py-3 border-t border-slate-200 bg-white sticky left-0">
         <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Legend</span>
         <div class="flex items-center gap-1.5">
           <div class="w-10 h-3.5 rounded" style="background:#f87171"></div>
-          <span class="text-xs text-slate-500">Patron / Public</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <div class="w-10 h-3.5 rounded" style="background:#60a5fa"></div>
-          <span class="text-xs text-slate-500">Internal / Staff</span>
+          <span class="text-xs text-slate-500">Booked</span>
         </div>
         <div class="flex items-center gap-1.5">
           <div class="w-10 h-3.5 rounded opacity-45" style="background:#f87171"></div>
@@ -493,30 +434,23 @@
     </div>
   </main>
 
-  <!-- ── Floating Tooltip ─────────────────────────────────── -->
   <div id="tooltip" class="hidden">
     <div class="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden text-sm">
-      <!-- Color accent bar -->
       <div id="tt-accent" class="h-1.5" style="background:#f87171"></div>
       <div class="p-3">
-        <!-- Title + type badge -->
         <div class="flex items-start justify-between gap-2 mb-2">
           <p id="tt-title" class="font-semibold text-slate-800 leading-tight"></p>
           <span id="tt-type-badge"
             class="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap font-medium flex-shrink-0"></span>
         </div>
-        <!-- Room (shown in all-rooms mode) -->
         <p id="tt-room" class="text-xs text-slate-500 mb-2 hidden"></p>
-        <!-- Times -->
         <div class="flex items-center gap-1.5 mb-1">
           <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           <span id="tt-times" class="text-xs text-slate-600"></span>
         </div>
-        <!-- Duration -->
         <p id="tt-duration" class="text-xs text-slate-400 ml-5 mb-1"></p>
-        <!-- Setup/Breakdown -->
         <div id="tt-setup-row" class="hidden flex items-center gap-1.5 mb-1">
           <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -524,21 +458,11 @@
           </svg>
           <span id="tt-setup" class="text-xs text-slate-500"></span>
         </div>
-        <!-- Contact info -->
-        <div id="tt-contact-row" class="hidden flex items-start gap-1.5 mb-1">
-          <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
-          <span id="tt-contact" class="text-xs text-slate-600 leading-relaxed"></span>
+        <div id="tt-contact-row" style="display:none" class="mt-2 pt-2 border-t border-slate-100 space-y-0.5">
+          <div id="tt-contact-name" class="text-xs font-medium text-slate-700"></div>
+          <div id="tt-contact-phone" class="text-xs text-slate-500"></div>
+          <div id="tt-contact-email" class="text-xs text-slate-500 break-all"></div>
         </div>
-        <!-- Expected attendees -->
-        <div id="tt-attendees-row" class="hidden flex items-center gap-1.5 mb-1">
-          <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-          <span id="tt-attendees" class="text-xs text-slate-500"></span>
-        </div>
-        <!-- Notes -->
         <div id="tt-desc-row" class="hidden mt-2 pt-2 border-t border-slate-100">
           <p id="tt-desc" class="text-xs text-slate-500 leading-relaxed line-clamp-3"></p>
         </div>
@@ -546,7 +470,6 @@
     </div>
   </div>
 
-  <!-- ── Find a Slot Modal ────────────────────────────────── -->
   <div id="modal-overlay" class="hidden">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
       <div class="bg-teal-800 text-white px-5 py-4 flex items-center justify-between">
@@ -563,19 +486,16 @@
         </button>
       </div>
       <div class="p-5 space-y-4">
-        <!-- Room display (or selector in all-rooms mode) -->
         <div>
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Room</label>
           <p id="modal-room-name" class="text-sm font-medium text-slate-700 bg-slate-50 rounded-md px-3 py-2 border border-slate-200"></p>
           <select id="modal-room-select" class="hidden w-full text-sm border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"></select>
         </div>
-        <!-- Date picker -->
         <div>
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Date</label>
           <input type="date" id="modal-date"
             class="w-full text-sm border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500" />
         </div>
-        <!-- Duration -->
         <div>
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Minimum Duration</label>
           <div class="flex gap-2 flex-wrap">
@@ -586,12 +506,10 @@
             <button class="dur-btn text-xs px-3 py-1.5 rounded-md border font-medium transition" data-mins="180">3 hr</button>
           </div>
         </div>
-        <!-- Search button -->
         <button id="modal-search-btn"
           class="w-full text-sm py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md font-medium transition">
           Search Availability
         </button>
-        <!-- Results -->
         <div id="modal-results" class="hidden">
           <div class="border-t border-slate-200 pt-3 mt-1">
             <p id="modal-results-label" class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2"></p>

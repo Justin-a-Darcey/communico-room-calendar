@@ -1,13 +1,8 @@
-// ── Constants ────────────────────────────────────────────────────────────────
+const OPEN_HOUR  = 9;
+const CLOSE_HOUR = 21;
+const TOTAL_MINS = (CLOSE_HOUR - OPEN_HOUR) * 60;
 
-const OPEN_HOUR  = 9;   // 9:00 AM
-const CLOSE_HOUR = 21;  // 9:00 PM
-const TOTAL_MINS = (CLOSE_HOUR - OPEN_HOUR) * 60; // 720 minutes
-
-const BOOKING_COLORS = {
-  staff:  "#60a5fa", // blue-400  — internal/staff reservations
-  patron: "#f87171", // red-400   — patron/public reservations
-};
+const BOOKING_COLOR = "#f87171";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -16,8 +11,6 @@ const MONTH_NAMES = [
 
 const DAY_ABBRS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-// ── State ─────────────────────────────────────────────────────────────────────
-
 const state = {
   branches:     [],
   bookings:     [],
@@ -25,11 +18,9 @@ const state = {
   roomId:       null,
   allRoomsMode: false,
   year:         new Date().getFullYear(),
-  month:        new Date().getMonth() + 1, // 1-based
+  month:        new Date().getMonth() + 1,
   loading:      false,
 };
-
-// ── DOM refs ──────────────────────────────────────────────────────────────────
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,7 +41,6 @@ const loadingState   = $("loading-state");
 const errorState     = $("error-state");
 const errorMsg       = $("error-msg");
 const retryBtn       = $("retry-btn");
-const statsBar       = $("stats-bar");
 const tooltip        = $("tooltip");
 const modalOverlay   = $("modal-overlay");
 const modalClose     = $("modal-close");
@@ -62,8 +52,6 @@ const modalResults   = $("modal-results");
 const modalResLabel  = $("modal-results-label");
 const modalResList   = $("modal-results-list");
 const lastUpdated    = $("last-updated");
-
-// ── Initialization ────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
   populateYearSelect();
@@ -106,8 +94,6 @@ function pushUrl() {
   p.set("month", state.month);
   history.replaceState(null, "", "?" + p.toString());
 }
-
-// ── Event listeners ───────────────────────────────────────────────────────────
 
 function setupEventListeners() {
   branchSelect.addEventListener("change", onBranchChange);
@@ -160,8 +146,6 @@ function setupEventListeners() {
   document.querySelector('.dur-btn[data-mins="60"]')?.click();
 }
 
-// ── Data loading ──────────────────────────────────────────────────────────────
-
 async function loadBranches() {
   showEmptyState("Loading branches…");
   try {
@@ -197,23 +181,20 @@ async function loadBookings() {
   const startDate = formatDate(firstDay);
   const endDate   = formatDate(lastDay);
 
-  // Pass roomId for server-side filtering when in single-room mode (Reserve API supports this)
-  const roomParam = (!state.allRoomsMode && state.roomId)
-    ? `&roomId=${state.roomId}`
-    : "";
-
   try {
     const res = await fetch(
-      `/api/bookings?locationId=${state.locationId}&startDate=${startDate}&endDate=${endDate}${roomParam}`
+      `/api/bookings?locationId=${state.locationId}&startDate=${startDate}&endDate=${endDate}`
     );
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       console.error("bookings fetch failed:", body);
       throw new Error(`HTTP ${res.status}: ${body.detail ?? "unknown"} | Communico: ${body.apiStatus ?? "?"} ${JSON.stringify(body.apiBody ?? {})}`);
     }
-    state.bookings = await res.json();
+    const allBookings = await res.json();
+    state.bookings = (!state.allRoomsMode && state.roomId)
+      ? allBookings.filter((b) => b.roomId === state.roomId)
+      : allBookings;
 
-    updateStats();
     renderCalendar();
     showCalendar();
 
@@ -227,8 +208,6 @@ async function loadBookings() {
     state.loading = false;
   }
 }
-
-// ── Branch / Room selectors ───────────────────────────────────────────────────
 
 function populateBranchSelect() {
   branchSelect.innerHTML = '<option value="">— Select a branch —</option>';
@@ -280,7 +259,6 @@ function onBranchChange() {
   populateRoomSelect(locationId);
   updateAllRoomsBtn();
   findSlotBtn.disabled = true;
-  hideStats();
   showEmptyState(locationId
     ? "Select a room to view availability"
     : "Select a branch and room to view availability"
@@ -331,8 +309,6 @@ function onTodayClick() {
   }
 }
 
-// ── Calendar rendering ────────────────────────────────────────────────────────
-
 function renderCalendar() {
   calendarInner.innerHTML = "";
   if (state.allRoomsMode) renderAllRoomsCalendar();
@@ -341,7 +317,7 @@ function renderCalendar() {
 
 function renderSingleRoomCalendar() {
   const room = getRoomName(state.roomId);
-  calendarInner.appendChild(buildTimeRuler(room ? `📍 ${room}` : "Date / Day"));
+  calendarInner.appendChild(buildTimeRuler(room ? `${room}` : "Date / Day"));
 
   for (const day of getDaysInMonth(state.year, state.month)) {
     const dateStr  = formatDate(day);
@@ -462,7 +438,6 @@ function buildTimelineBar(bookings, showRoomInTooltip) {
   const bar = document.createElement("div");
   bar.className = "timeline-bar";
 
-  // Hour and half-hour grid lines
   for (let h = OPEN_HOUR; h <= CLOSE_HOUR; h++) {
     const pct = ((h - OPEN_HOUR) * 60) / TOTAL_MINS * 100;
     const line = document.createElement("div");
@@ -487,16 +462,14 @@ function buildTimelineBar(bookings, showRoomInTooltip) {
 }
 
 function buildBookingBlock(booking, showRoomInTooltip) {
-  const color = booking.type === "staff" ? BOOKING_COLORS.staff : BOOKING_COLORS.patron;
+  const color = BOOKING_COLOR;
 
-  // Core event time in minutes from OPEN_HOUR
   const startMins = parseReserveMinutes(booking.startTime);
   const endMins   = parseReserveMinutes(booking.endTime);
 
   if (endMins <= 0 || startMins >= TOTAL_MINS) return null;
 
-  // Expand block to include setup/breakdown buffers
-  const setupMins     = booking.setupTime     ?? 0; // integer minutes
+  const setupMins     = booking.setupTime     ?? 0;
   const breakdownMins = booking.breakdownTime ?? 0;
 
   const blockStart = Math.max(0, startMins - setupMins);
@@ -513,14 +486,10 @@ function buildBookingBlock(booking, showRoomInTooltip) {
   block.style.width   = widthPct + "%";
   block.style.background = color;
 
-  // ── Setup band (lighter, left portion) ──────────────────
   const setupBandPct = ((Math.max(blockStart, startMins) - blockStart) / blockDuration) * 100;
-
-  // ── Breakdown band (lighter, right portion) ──────────────
   const bdStartInBlock = (Math.max(blockStart, endMins) - blockStart) / blockDuration * 100;
   const bdWidthPct     = 100 - bdStartInBlock;
 
-  // Only render bands if there actually is setup/breakdown time
   if (setupBandPct > 0) {
     const setup = document.createElement("div");
     setup.className = "band-setup";
@@ -547,84 +516,21 @@ function buildBookingBlock(booking, showRoomInTooltip) {
   return block;
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-
-function updateStats() {
-  let totalMinsBooked = 0;
-  for (const b of state.bookings) {
-    const dur = parseReserveMinutes(b.endTime) - parseReserveMinutes(b.startTime);
-    if (dur > 0) totalMinsBooked += dur;
-  }
-
-  const totalHours  = (totalMinsBooked / 60).toFixed(1);
-  const daysInMonth = new Date(state.year, state.month, 0).getDate();
-  const utilPct     = Math.round((totalMinsBooked / (daysInMonth * TOTAL_MINS)) * 100);
-
-  const today = new Date();
-  const isCurrentMonth =
-    today.getFullYear() === state.year && today.getMonth() + 1 === state.month;
-  let todayText = "—";
-
-  if (isCurrentMonth) {
-    const todayStr     = formatDate(today);
-    const todayCount   = state.bookings.filter((b) => b.startTime.startsWith(todayStr)).length;
-    const nextSlot     = findNextAvailableToday(todayStr);
-    todayText = nextSlot
-      ? `Next open: ${nextSlot}`
-      : todayCount === 0
-        ? "No bookings"
-        : `${todayCount} booking${todayCount !== 1 ? "s" : ""}`;
-  }
-
-  $("stat-bookings").textContent = state.bookings.length;
-  $("stat-hours").textContent    = `${totalHours} hrs`;
-  $("stat-util").textContent     = `${utilPct}%`;
-  $("stat-util-bar").style.width = `${Math.min(100, utilPct)}%`;
-  $("stat-today").textContent    = todayText;
-
-  statsBar.classList.remove("hidden");
-}
-
-function findNextAvailableToday(todayStr) {
-  const now     = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes() - OPEN_HOUR * 60;
-  if (nowMins >= TOTAL_MINS) return null;
-
-  const sorted = state.bookings
-    .filter((b) => b.startTime.startsWith(todayStr))
-    .map((b) => ({
-      start: parseReserveMinutes(b.startTime) - (b.setupTime ?? 0),
-      end:   parseReserveMinutes(b.endTime)   + (b.breakdownTime ?? 0),
-    }))
-    .sort((a, b) => a.start - b.start);
-
-  let cursor = Math.max(0, nowMins);
-  for (const b of sorted) {
-    if (cursor + 30 <= b.start) return minutesToTime12(cursor);
-    cursor = Math.max(cursor, b.end);
-  }
-  if (cursor + 30 <= TOTAL_MINS) return minutesToTime12(cursor);
-  return null;
-}
-
-function hideStats() { statsBar.classList.add("hidden"); }
-
-// ── Tooltip ───────────────────────────────────────────────────────────────────
-
 function showTooltip(booking, color, showRoom) {
-  const isStaff    = booking.type === "staff";
-  const isPending  = booking.status === "pending";
-  const typeLabel  = isStaff ? "Internal / Staff" : "Patron / Public";
-  const typeBg     = isStaff ? "#dbeafe" : "#fee2e2";
-  const typeColor  = isStaff ? "#1d4ed8" : "#b91c1c";
+  const isPending = booking.status === "pending";
 
   $("tt-accent").style.background = color;
   $("tt-title").textContent = booking.displayName || "Booking";
 
   const badge = $("tt-type-badge");
-  badge.textContent     = isPending ? "⏳ Pending" : typeLabel;
-  badge.style.background = isPending ? "#fef3c7" : typeBg;
-  badge.style.color      = isPending ? "#92400e"  : typeColor;
+  if (isPending) {
+    badge.textContent      = "⏳ Pending";
+    badge.style.background = "#fef3c7";
+    badge.style.color      = "#92400e";
+    badge.style.display    = "";
+  } else {
+    badge.style.display = "none";
+  }
 
   if (showRoom && booking.roomName) {
     $("tt-room").textContent = `📍 ${booking.roomName}`;
@@ -640,7 +546,6 @@ function showTooltip(booking, color, showRoom) {
   const durationMins = parseReserveMinutes(booking.endTime) - parseReserveMinutes(booking.startTime);
   $("tt-duration").textContent = formatDuration(durationMins);
 
-  // Setup / Breakdown (show if either is non-zero)
   if ((booking.setupTime ?? 0) > 0 || (booking.breakdownTime ?? 0) > 0) {
     const parts = [];
     if (booking.setupTime > 0)     parts.push(`${booking.setupTime} min setup`);
@@ -651,35 +556,22 @@ function showTooltip(booking, color, showRoom) {
     $("tt-setup-row").classList.add("hidden");
   }
 
-  // Contact info
-  const hasContact = booking.contactName || booking.contactPhone || booking.contactEmail;
-  if (hasContact) {
-    const parts = [
-      booking.contactName  ? `<span class="font-medium text-slate-700">${escHtml(booking.contactName)}</span>` : "",
-      booking.contactPhone ? `<span>📞 ${escHtml(booking.contactPhone)}</span>` : "",
-      booking.contactEmail ? `<span>✉ ${escHtml(booking.contactEmail)}</span>` : "",
-    ].filter(Boolean);
-    $("tt-contact").innerHTML = parts.join('<span class="text-slate-300 mx-1">·</span>');
-    $("tt-contact-row").classList.remove("hidden");
+  const contactRow = $("tt-contact-row");
+  if (booking.contactName || booking.contactPhone || booking.contactEmail) {
+    $("tt-contact-name").textContent  = booking.contactName  || "";
+    $("tt-contact-phone").textContent = booking.contactPhone ? `📞 ${booking.contactPhone}` : "";
+    $("tt-contact-email").textContent = booking.contactEmail ? `✉ ${booking.contactEmail}`  : "";
+    contactRow.style.display = "block";
   } else {
-    $("tt-contact-row").classList.add("hidden");
+    contactRow.style.display = "none";
   }
 
-  // Notes
   const notes = (booking.patronNotes || booking.eventNotes || "").trim();
   if (notes) {
     $("tt-desc").textContent = notes;
     $("tt-desc-row").classList.remove("hidden");
   } else {
     $("tt-desc-row").classList.add("hidden");
-  }
-
-  // Expected attendees
-  if (booking.expectedAttendees > 0) {
-    $("tt-attendees").textContent = `👥 ${booking.expectedAttendees} expected`;
-    $("tt-attendees-row").classList.remove("hidden");
-  } else {
-    $("tt-attendees-row").classList.add("hidden");
   }
 
   tooltip.classList.remove("hidden");
@@ -700,8 +592,6 @@ function positionTooltip(mouseX, mouseY) {
   tooltip.style.left = x + "px";
   tooltip.style.top  = y + "px";
 }
-
-// ── Find a Slot modal ─────────────────────────────────────────────────────────
 
 function openFindSlotModal() {
   const today = new Date();
@@ -782,7 +672,6 @@ function runFindSlot() {
 }
 
 function findAvailableSlots(dateStr, roomId, durationMins) {
-  // Use the full blocked window (including setup/breakdown) for accuracy
   const occupied = state.bookings
     .filter((b) => b.roomId === roomId && b.startTime.startsWith(dateStr))
     .map((b) => ({
@@ -803,8 +692,6 @@ function findAvailableSlots(dateStr, roomId, durationMins) {
 
   return slots;
 }
-
-// ── UI state helpers ──────────────────────────────────────────────────────────
 
 function showEmptyState(msg) {
   emptyStateMsg.textContent = msg;
@@ -847,8 +734,6 @@ function scrollToToday() {
   const row = calendarInner.querySelector(".cal-row.is-today, .day-group-header.bg-amber-50");
   if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getRoomName(roomId) {
   const branch = state.branches.find((b) => b.locationId === state.locationId);
@@ -896,7 +781,6 @@ function isWeekend(date) {
   return day === 0 || day === 6;
 }
 
-// "YYYY-MM-DD HH:MM:SS" → minutes from OPEN_HOUR (may be negative if before open)
 function parseReserveMinutes(dateTimeStr) {
   if (!dateTimeStr) return 0;
   const [, timePart = "00:00:00"] = dateTimeStr.split(" ");
@@ -904,7 +788,6 @@ function parseReserveMinutes(dateTimeStr) {
   return h * 60 + m - OPEN_HOUR * 60;
 }
 
-// Minutes from OPEN_HOUR → "H:MM AM/PM"
 function minutesToTime12(mins) {
   const total = OPEN_HOUR * 60 + mins;
   return formatTime12(Math.floor(total / 60), total % 60);
@@ -916,7 +799,6 @@ function formatTime12(h, m) {
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-// "YYYY-MM-DD HH:MM:SS" → "H:MM AM/PM"
 function formatReserveTime(dateTimeStr) {
   if (!dateTimeStr) return "";
   const [, timePart = "00:00:00"] = dateTimeStr.split(" ");
