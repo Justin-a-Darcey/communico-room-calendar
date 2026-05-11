@@ -206,7 +206,11 @@ async function loadBookings() {
     const res = await fetch(
       `/api/bookings?locationId=${state.locationId}&startDate=${startDate}&endDate=${endDate}${roomParam}`
     );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("bookings fetch failed:", body);
+      throw new Error(`HTTP ${res.status}: ${body.detail ?? "unknown"} | Communico: ${body.apiStatus ?? "?"} ${JSON.stringify(body.apiBody ?? {})}`);
+    }
     state.bookings = await res.json();
 
     updateStats();
@@ -217,7 +221,7 @@ async function loadBookings() {
     lastUpdated.textContent = `Updated ${formatTime12(now.getHours(), now.getMinutes())}`;
     lastUpdated.classList.remove("hidden");
   } catch (err) {
-    showError("Failed to load reservations. The Communico API may be unavailable.");
+    showError(`Failed to load reservations — ${err.message}`);
     console.error("loadBookings:", err);
   } finally {
     state.loading = false;

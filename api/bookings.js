@@ -95,7 +95,14 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "public, s-maxage=60");
     res.json(bookings);
   } catch (err) {
-    console.error("bookings error:", err.message);
-    res.status(500).json({ error: "Failed to fetch reservations" });
+    const status = err.response?.status;
+    const body   = err.response?.data;
+    console.error("bookings error:", err.message, "| HTTP:", status, "| body:", JSON.stringify(body));
+    res.status(500).json({
+      error: "Failed to fetch reservations",
+      detail: err.message,
+      apiStatus: status ?? null,
+      apiBody: body ?? null,
+    });
   }
 }
