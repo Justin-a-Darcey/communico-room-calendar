@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Room Availability Calendar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; }
+
+    /* ── Calendar structure ─────────────────────────────── */
+    #calendar-inner {
+      min-width: 1060px;
+    }
+
+    .cal-row {
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid #e5e7eb;
+      min-height: 46px;
+    }
+
+    .cal-row:last-child { border-bottom: none; }
+
+    /* Sticky day label column */
+    .day-label {
+      width: 80px;
+      min-width: 80px;
+      position: sticky;
+      left: 0;
+      z-index: 5;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 2px;
+      font-size: 11px;
+      color: #374151;
+      border-right: 1px solid #e5e7eb;
+    }
+
+    .day-label .day-name {
+      font-weight: 600;
+      font-size: 12px;
+      color: #1f2937;
+    }
+
+    .day-label .day-date {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    /* Timeline bar — the per-day booking area */
+    .timeline-bar {
+      flex: 1;
+      position: relative;
+      background: #f0fdf4;
+      overflow: visible;
+    }
+
+    /* Hour + half-hour grid lines drawn inside timeline-bar */
+    .grid-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .grid-line.hour  { background: rgba(134,239,172,0.6); }
+    .grid-line.half  { background: rgba(134,239,172,0.3); }
+
+    /* ── Time ruler row ─────────────────────────────────── */
+    .time-ruler-row {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: white;
+      border-bottom: 2px solid #d1d5db;
+      min-height: 34px;
+    }
+
+    .time-ruler-row .day-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background: white;
+    }
+
+    .ruler-bar {
+      flex: 1;
+      position: relative;
+      background: white;
+    }
+
+    .hour-tick {
+      position: absolute;
+      transform: translateX(-50%);
+      top: 6px;
+      font-size: 11px;
+      color: #6b7280;
+      font-weight: 500;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .hour-tick-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: #d1d5db;
+      pointer-events: none;
+    }
+
+    /* ── Booking blocks ─────────────────────────────────── */
+    .booking-block {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      z-index: 3;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      transition: filter 0.1s, box-shadow 0.1s;
+      min-width: 4px;
+    }
+
+    .booking-block:hover {
+      filter: brightness(0.88);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      z-index: 4;
+    }
+
+    .booking-block.is-pending {
+      opacity: 0.75;
+      outline: 2px dashed rgba(255,255,255,0.7);
+      outline-offset: -2px;
+    }
+
+    /* Setup/breakdown bands rendered as sibling divs inside the block */
+    .band-setup, .band-breakdown {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 1;
+      opacity: 0.45;
+      background: currentColor;
+    }
+
+    .band-setup { left: 0; }
+    .band-breakdown { right: 0; }
+
+    .band-event {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 2;
+    }
+
+    .booking-label {
+      position: relative;
+      z-index: 3;
+      font-size: 10px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 0 5px;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      pointer-events: none;
+      line-height: 1.2;
+    }
+
+    /* ── Row state variants ─────────────────────────────── */
+    .cal-row.is-today .day-label {
+      background: #fef3c7;
+    }
+    .cal-row.is-today .day-label .day-name,
+    .cal-row.is-today .day-label .day-date {
+      color: #92400e;
+    }
+    .cal-row.is-today .timeline-bar {
+      background: #fefce8;
+    }
+
+    .cal-row.is-weekend .timeline-bar {
+      background: #f9fafb;
+    }
+    .cal-row.is-weekend .day-label {
+      background: #f9fafb;
+    }
+
+    .cal-row.is-past .day-label {
+      color: #9ca3af;
+    }
+    .cal-row.is-past .day-label .day-name,
+    .cal-row.is-past .day-label .day-date {
+      color: #9ca3af;
+    }
+    .cal-row.is-past .timeline-bar {
+      opacity: 0.55;
+    }
+
+    /* ── All Rooms mode ─────────────────────────────────── */
+    .day-group-header {
+      display: flex;
+      align-items: center;
+      background: #f3f4f6;
+      border-bottom: 1px solid #d1d5db;
+      padding: 4px 8px;
+      position: sticky;
+      left: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      min-height: 28px;
+    }
+
+    .room-row-label {
+      width: 80px;
+      min-width: 80px;
+      position: sticky;
+      left: 0;
+      z-index: 5;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 2px 8px 2px 4px;
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 500;
+      border-right: 1px solid #e5e7eb;
+      text-align: right;
+    }
+
+    /* ── Tooltip ─────────────────────────────────────────── */
+    #tooltip {
+      position: fixed;
+      z-index: 100;
+      pointer-events: none;
+      max-width: 280px;
+      min-width: 200px;
+    }
+
+    #tooltip.hidden { display: none; }
+
+    /* ── Scrollbar styling ──────────────────────────────── */
+    #calendar-outer::-webkit-scrollbar { height: 8px; width: 8px; }
+    #calendar-outer::-webkit-scrollbar-track { background: #f1f5f9; }
+    #calendar-outer::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    #calendar-outer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ── Skeleton loading rows ──────────────────────────── */
+    @keyframes shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+    }
+
+    /* ── Select styling ─────────────────────────────────── */
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 28px !important;
+    }
+
+    /* ── Find-a-slot modal ──────────────────────────────── */
+    #modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.hidden { display: none; }
+  </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
+
+  <!-- ── Header ─────────────────────────────────────────── -->
+  <header class="bg-teal-900 text-white px-6 py-3 flex items-center justify-between flex-shrink-0 shadow-md">
+    <div class="flex items-center gap-3">
+      <svg class="w-6 h-6 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <div>
+        <h1 class="font-semibold text-base leading-tight">Room Availability Calendar</h1>
+        <p class="text-teal-300 text-xs leading-tight">Alachua County Library District</p>
+      </div>
+    </div>
+    <div id="last-updated" class="text-teal-400 text-xs hidden"></div>
+  </header>
+
+  <!-- ── Controls bar ───────────────────────────────────── -->
+  <div class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap items-center gap-3 flex-shrink-0">
+    <!-- Branch selector -->
+    <div class="flex items-center gap-2">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Branch</label>
+      <select id="branch-select"
+        class="text-sm border border-slate-300 rounded-md px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 min-w-[200px]">
+        <option value="">— Select a branch —</option>
+      </select>
+    </div>
+
+    <!-- Room selector + All Rooms toggle -->
+    <div class="flex items-center gap-2">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Room</label>
+      <select id="room-select"
+        class="text-sm border border-slate-300 rounded-md px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 min-w-[180px]"
+        disabled>
+        <option value="">— Select a room —</option>
+      </select>
+      <button id="all-rooms-btn"
+        class="text-xs px-3 py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 transition hidden whitespace-nowrap"
+        title="View all rooms at this branch">
+        All Rooms
+      </button>
+    </div>
+
+    <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+
+    <!-- Month navigation -->
+    <div class="flex items-center gap-1.5">
+      <button id="prev-month-btn"
+        class="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+
+      <div class="flex items-center gap-1.5">
+        <select id="month-select"
+          class="text-sm font-medium border border-slate-300 rounded-md px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+        <select id="year-select"
+          class="text-sm font-medium border border-slate-300 rounded-md px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
+        </select>
+      </div>
+
+      <button id="next-month-btn"
+        class="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+
+      <button id="today-btn"
+        class="text-xs px-3 py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 transition ml-1">
+        Today
+      </button>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <!-- Find a Slot button -->
+    <button id="find-slot-btn"
+      class="flex items-center gap-1.5 text-sm px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md transition font-medium disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+      disabled>
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      Find a Slot
+    </button>
+  </div>
+
+  <!-- ── Stats bar ───────────────────────────────────────── -->
+  <div id="stats-bar" class="bg-white border-b border-slate-200 px-6 py-2 flex items-center gap-6 flex-shrink-0 hidden">
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Bookings</span>
+      <span id="stat-bookings" class="text-sm font-bold text-slate-700">—</span>
+    </div>
+    <div class="h-4 w-px bg-slate-200"></div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Hours Booked</span>
+      <span id="stat-hours" class="text-sm font-bold text-slate-700">—</span>
+    </div>
+    <div class="h-4 w-px bg-slate-200"></div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Utilization</span>
+      <div class="flex items-center gap-1.5">
+        <div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div id="stat-util-bar" class="h-full bg-teal-500 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <span id="stat-util" class="text-sm font-bold text-slate-700">—</span>
+      </div>
+    </div>
+    <div class="h-4 w-px bg-slate-200"></div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Today</span>
+      <span id="stat-today" class="text-sm font-medium text-slate-600">—</span>
+    </div>
+  </div>
+
+  <!-- ── Main calendar area ─────────────────────────────── -->
+  <main class="flex-1 overflow-hidden flex flex-col">
+
+    <!-- Empty state / prompts -->
+    <div id="empty-state" class="flex-1 flex flex-col items-center justify-center text-center p-8">
+      <svg class="w-16 h-16 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <p id="empty-state-msg" class="text-slate-400 text-base font-medium">Select a branch and room to view availability</p>
+      <p class="text-slate-300 text-sm mt-1">Bookings load directly from Communico</p>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading-state" class="flex-1 flex items-center justify-center hidden">
+      <div class="flex flex-col items-center gap-3">
+        <svg class="w-8 h-8 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <span class="text-slate-500 text-sm">Loading bookings…</span>
+      </div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-state" class="flex-1 flex flex-col items-center justify-center hidden">
+      <svg class="w-12 h-12 text-red-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <p id="error-msg" class="text-slate-500 text-sm">Something went wrong.</p>
+      <button id="retry-btn" class="mt-3 text-sm text-teal-600 hover:underline">Retry</button>
+    </div>
+
+    <!-- Calendar scroll container -->
+    <div id="calendar-outer" class="flex-1 overflow-auto hidden">
+      <div id="calendar-inner">
+        <!-- Rows injected by app.js -->
+      </div>
+
+      <!-- Legend -->
+      <div id="legend" class="flex items-center gap-5 px-6 py-3 border-t border-slate-200 bg-white sticky left-0">
+        <span class="text-xs text-slate-400 uppercase tracking-wide font-semibold">Legend</span>
+        <div class="flex items-center gap-1.5">
+          <div class="w-10 h-3.5 rounded" style="background:#f87171"></div>
+          <span class="text-xs text-slate-500">Patron / Public</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-10 h-3.5 rounded" style="background:#60a5fa"></div>
+          <span class="text-xs text-slate-500">Internal / Staff</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-10 h-3.5 rounded opacity-45" style="background:#f87171"></div>
+          <span class="text-xs text-slate-500">Setup / Breakdown</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-10 h-3.5 rounded" style="background:#f87171;outline:2px dashed rgba(255,255,255,0.7);outline-offset:-2px;opacity:0.75"></div>
+          <span class="text-xs text-slate-500">Pending approval</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-3.5 h-3.5 rounded" style="background:#fef3c7;border:1px solid #fcd34d"></div>
+          <span class="text-xs text-slate-500">Today</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Floating Tooltip ─────────────────────────────────── -->
+  <div id="tooltip" class="hidden">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden text-sm">
+      <!-- Color accent bar -->
+      <div id="tt-accent" class="h-1.5" style="background:#f87171"></div>
+      <div class="p-3">
+        <!-- Title + type badge -->
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <p id="tt-title" class="font-semibold text-slate-800 leading-tight"></p>
+          <span id="tt-type-badge"
+            class="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap font-medium flex-shrink-0"></span>
+        </div>
+        <!-- Room (shown in all-rooms mode) -->
+        <p id="tt-room" class="text-xs text-slate-500 mb-2 hidden"></p>
+        <!-- Times -->
+        <div class="flex items-center gap-1.5 mb-1">
+          <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span id="tt-times" class="text-xs text-slate-600"></span>
+        </div>
+        <!-- Duration -->
+        <p id="tt-duration" class="text-xs text-slate-400 ml-5 mb-1"></p>
+        <!-- Setup/Breakdown -->
+        <div id="tt-setup-row" class="hidden flex items-center gap-1.5 mb-1">
+          <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span id="tt-setup" class="text-xs text-slate-500"></span>
+        </div>
+        <!-- Contact info -->
+        <div id="tt-contact-row" class="hidden flex items-start gap-1.5 mb-1">
+          <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          <span id="tt-contact" class="text-xs text-slate-600 leading-relaxed"></span>
+        </div>
+        <!-- Expected attendees -->
+        <div id="tt-attendees-row" class="hidden flex items-center gap-1.5 mb-1">
+          <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span id="tt-attendees" class="text-xs text-slate-500"></span>
+        </div>
+        <!-- Notes -->
+        <div id="tt-desc-row" class="hidden mt-2 pt-2 border-t border-slate-100">
+          <p id="tt-desc" class="text-xs text-slate-500 leading-relaxed line-clamp-3"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Find a Slot Modal ────────────────────────────────── -->
+  <div id="modal-overlay" class="hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="bg-teal-800 text-white px-5 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <h2 class="font-semibold text-base">Find an Available Slot</h2>
+        </div>
+        <button id="modal-close" class="text-teal-300 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <!-- Room display (or selector in all-rooms mode) -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Room</label>
+          <p id="modal-room-name" class="text-sm font-medium text-slate-700 bg-slate-50 rounded-md px-3 py-2 border border-slate-200"></p>
+          <select id="modal-room-select" class="hidden w-full text-sm border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"></select>
+        </div>
+        <!-- Date picker -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Date</label>
+          <input type="date" id="modal-date"
+            class="w-full text-sm border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+        </div>
+        <!-- Duration -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Minimum Duration</label>
+          <div class="flex gap-2 flex-wrap">
+            <button class="dur-btn text-xs px-3 py-1.5 rounded-md border font-medium transition" data-mins="30">30 min</button>
+            <button class="dur-btn text-xs px-3 py-1.5 rounded-md border font-medium transition" data-mins="60">1 hr</button>
+            <button class="dur-btn text-xs px-3 py-1.5 rounded-md border font-medium transition" data-mins="90">1.5 hr</button>
+            <button class="dur-btn text-xs px-3 py-1.5 rounded-md border font-medium transition" data-mins="120">2 hr</button>
+            <button class="dur-btn text-xs px-3 py-1.5 rounded-md border font-medium transition" data-mins="180">3 hr</button>
+          </div>
+        </div>
+        <!-- Search button -->
+        <button id="modal-search-btn"
+          class="w-full text-sm py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md font-medium transition">
+          Search Availability
+        </button>
+        <!-- Results -->
+        <div id="modal-results" class="hidden">
+          <div class="border-t border-slate-200 pt-3 mt-1">
+            <p id="modal-results-label" class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2"></p>
+            <div id="modal-results-list" class="space-y-1.5 max-h-52 overflow-y-auto"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
